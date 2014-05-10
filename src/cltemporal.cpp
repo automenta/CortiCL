@@ -12,6 +12,7 @@ constexpr static const char* TEMPORAL_SRC =
 #include "temporal.cl.h"
 ;
 
+
 CLTemporalPooler::CLTemporalPooler(CLContext& context, const CLTopology& topo, const CLArgs& args)
 	: m_context(context)
 	, m_topology(topo)
@@ -41,20 +42,47 @@ CLTemporalPooler::CLTemporalPooler(CLContext& context, const CLTopology& topo, c
 		throw;
 	}
 
-	m_timeStepKernel = cl::KernelFunctor(cl::Kernel(program, "timeStep"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_computeActiveStateKernel = cl::KernelFunctor(cl::Kernel(program, "computeActiveState"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_computePredictiveState = cl::KernelFunctor(cl::Kernel(program, "computePredictiveState"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_updateSynapsesKernel = cl::KernelFunctor(cl::Kernel(program, "updateSynapses"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+
+
+/*
+std::cerr << "timeStepKernel: " << typeid(m_timeStepKernel).name() << "\n";
+
+c++filt -t "N2cl11make_kernelIRNS_6BufferES2_S2_8cl_uint2NS_6detail8NullTypeES5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_S5_EE"
+
+cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType, cl::detail::NullType>
+*/
+
+
+//	m_timeStepKernel = cl::KernelFunctor(cl::Kernel(program, "timeStep"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
 	
+
+	auto timeStepKernel = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&>(cl::Kernel(program, "timeStep"));
+	m_timeStepKernel = &timeStepKernel;
+
+//	m_computeActiveStateKernel = cl::KernelFunctor(cl::Kernel(program, "computeActiveState"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto computeActiveStateKernel = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "computeActiveState"));
+	m_computeActiveStateKernel = &computeActiveStateKernel;
+
+//	m_computePredictiveState = cl::KernelFunctor(cl::Kernel(program, "computePredictiveState"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto computePredictiveState = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "computePredictiveState"));
+	m_computePredictiveState = &computePredictiveState;
+
+//	m_updateSynapsesKernel = cl::KernelFunctor(cl::Kernel(program, "updateSynapses"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto updateSynapsesKernel = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&>(cl::Kernel(program, "updateSynapses"));
+	m_updateSynapsesKernel = &updateSynapsesKernel;
+
 	// Initialize region
-	cl::KernelFunctor initRegion =
-	cl::KernelFunctor(cl::Kernel(program, "initRegion"), context.queue(),
-		cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+//  cl::KernelFunctor initRegion =	cl::KernelFunctor(cl::Kernel(program, "initRegion"), context.queue(),		cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto initRegion
+		= cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "initRegion"));
+
+	cl::EnqueueArgs eargs(context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
 
 	cl_uint2 randomState;
 	randomState.s[0] = rand();
 	randomState.s[1] = rand();
-	initRegion(m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), randomState);
+	initRegion(eargs, m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), randomState).wait();
+
 	std::cerr << "CLTemporalPooler: Kernels loaded" << std::endl;
 }
 void CLTemporalPooler::pullBuffers(bool cells, bool segments, bool synapses)
@@ -93,17 +121,30 @@ void CLTemporalPooler::write(const std::vector< cl_char >& activations_in, std::
 	randomSeed.s[0] = rand();
 	randomSeed.s[1] = rand();
 
+
+	//cl::EnqueueArgs eargs(m_context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+
 	// Phase 0: Step forwards in time
-	m_timeStepKernel(m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer());
+	(*m_timeStepKernel)(
+		cl::EnqueueArgs(m_context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange),
+		m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer()).wait();
+
 
 	// Phase 1: Compute active state for each cell
-	m_computeActiveStateKernel(m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer(), randomSeed);
+	(*m_computeActiveStateKernel)(
+		cl::EnqueueArgs(m_context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange),
+		m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer(), randomSeed).wait();
 
 	// Phase 2: Compute predictive state for each cell
-	m_computePredictiveState(m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer(), randomSeed);
+	(*m_computePredictiveState)(
+		cl::EnqueueArgs(m_context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange),
+		m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer(), randomSeed).wait();
 
 	// Phase 3: Update permanences
-	m_updateSynapsesKernel(m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer());
+	(*m_updateSynapsesKernel)(
+		cl::EnqueueArgs(m_context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange),
+		m_cellData.buffer(), m_segmentData.buffer(), m_synapseData.buffer(), m_inputData.buffer()).wait();
+
 
 	// Obtain result (list of column activity) from compute device and save to results_out
 	results_out.resize(m_topology.getColumns());

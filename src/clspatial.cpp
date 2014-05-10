@@ -11,6 +11,9 @@ constexpr static const char* SPATIAL_SRC =
 #include "spatial.cl.h"
 ;
 
+
+
+
 CLSpatialPooler::CLSpatialPooler(CLContext& context, const CLTopology& topo, const CLArgs& args)
 	: m_context(context)
 	, m_topology(topo)
@@ -40,20 +43,40 @@ CLSpatialPooler::CLSpatialPooler(CLContext& context, const CLTopology& topo, con
 		throw;
 	}
 
-	m_computeOverlapKernel = cl::KernelFunctor(cl::Kernel(program, "computeOverlap"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_inhibitNeighboursKernel = cl::KernelFunctor(cl::Kernel(program, "inhibitNeighbours"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_updatePermanencesKernel = cl::KernelFunctor(cl::Kernel(program, "updatePermanences"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
-	m_refineRegionKernel = cl::KernelFunctor(cl::Kernel(program, "refineRegion"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	//http://stackoverflow.com/questions/21352167/different-ways-to-make-kernel
+	//http://simpleopencl.blogspot.com/2013/06/tutorial-simple-start-with-opencl-and-c.html
+	//EX: auto simple_add = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&>(program, "simple_add");
 
-	// Initialize region
-	cl::KernelFunctor initRegion =
-	cl::KernelFunctor(cl::Kernel(program, "initRegion"), context.queue(),
-		cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	cl::EnqueueArgs eargs(context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+
+//	m_computeOverlapKernel = cl::KernelFunctorGlobal(cl::Kernel(program, "computeOverlap"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange); 
+	auto m_computeOverlapKernel = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "computeOverlap"));
+
+//simple_add(eargs, buffer_A,buffer_B,buffer_C).wait();
+
+//	m_inhibitNeighboursKernel = cl::KernelFunctorGlobal(cl::Kernel(program, "inhibitNeighbours"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto m_inhibitNeighboursKernel = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "inhibitNeighbours"));
+
+//	m_updatePermanencesKernel = cl::KernelFunctorGlobal(cl::Kernel(program, "updatePermanences"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto m_updatePermanencesKernel
+		= cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "updatePermanences"));
+
+//	m_refineRegionKernel = cl::KernelFunctorGlobal(cl::Kernel(program, "refineRegion"), context.queue(), cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto m_refineRegionKernel
+		= cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "refineRegion"));
+
+// Initialize region
+//	cl::KernelFunctorGlobal initRegion = cl::KernelFunctorGlobal(cl::Kernel(program, "initRegion"), context.queue(),		cl::NullRange, cl::NDRange(m_topology.getColumns()), cl::NullRange);
+	auto initRegion
+		= cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2>(cl::Kernel(program, "initRegion"));
+
 
 	cl_uint2 randomState;
 	randomState.s[0] = rand();
 	randomState.s[1] = rand();
-	initRegion(m_columnData.buffer(), m_synapseData.buffer(), randomState);
+
+//	initRegion(m_columnData.buffer(), m_synapseData.buffer(), randomState);
+	initRegion(eargs, m_columnData.buffer(), m_synapseData.buffer(), randomState).wait();
 
 	std::cerr << "CLSpatialPooler: Kernels loaded" << std::endl;
 }
@@ -67,6 +90,7 @@ std::vector<cl_char> CLSpatialPooler::write(const std::vector<cl_char>& bits)
 	// Send given input pattern to compute device
 	m_inputData.enqueueWrite(false, bits);
 
+/*
 	// Phase 1: Overlap
 	m_computeOverlapKernel(m_columnData.buffer(), m_synapseData.buffer(), m_inputData.buffer());
 
@@ -85,6 +109,7 @@ std::vector<cl_char> CLSpatialPooler::write(const std::vector<cl_char>& bits)
 		m_refineRegionKernel(m_columnData.buffer(), m_synapseData.buffer(), randomState);
 		m_refineCounter = 0;
 	}
+*/
 
 	// Download list of active columns from the compute device
 	m_columnData.enqueueRead(true);

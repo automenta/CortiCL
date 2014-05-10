@@ -7,6 +7,7 @@
 #include "cltopology.h"
 #include "clargs.h"
 
+
 std::string getCLError(cl_int err);
 
 struct CLStats;
@@ -61,10 +62,16 @@ private:
 	const CLTopology m_topology;
 	const CLArgs m_args;
 
-	cl::KernelFunctor m_timeStepKernel;
+	/*cl::KernelFunctor m_timeStepKernel;
 	cl::KernelFunctor m_computeActiveStateKernel;
 	cl::KernelFunctor m_computePredictiveState;
-	cl::KernelFunctor m_updateSynapsesKernel;
+	cl::KernelFunctor m_updateSynapsesKernel;*/
+
+	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&> *m_timeStepKernel;
+	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2> *m_computeActiveStateKernel;
+	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl_uint2> *m_computePredictiveState;
+	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&>	*m_updateSynapsesKernel;
+
 
 	CLBuffer<CLCell> m_cellData;
 	CLBuffer<CLSegment> m_segmentData;

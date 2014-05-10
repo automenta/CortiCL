@@ -34,10 +34,19 @@ private:
 	const CLTopology m_topology;
 	const CLArgs m_args;
 
+
+	//detail::functionImplementation<cl::Buffer&, cl::Buffer&, cl_uint2> m_computeOverlapKernel;
+//	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2> m_inhibitNeighboursKernel;
+//	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2> m_updatePermanencesKernel;
+//	cl::make_kernel<cl::Buffer&, cl::Buffer&, cl_uint2> m_refineRegionKernel;
+
+
+/*
 	cl::KernelFunctor m_computeOverlapKernel;
 	cl::KernelFunctor m_inhibitNeighboursKernel;
 	cl::KernelFunctor m_updatePermanencesKernel;
 	cl::KernelFunctor m_refineRegionKernel;
+*/
 
 	CLBuffer<CLColumn> m_columnData;
 	CLBuffer<CLSynapse> m_synapseData;

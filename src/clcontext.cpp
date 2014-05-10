@@ -15,6 +15,10 @@ CLContext::CLContext()
 		throw std::runtime_error("OpenCL platform contains no devices");
 
 	m_device = deviceList.front();
-	m_context = cl::Context({m_device});
+
+	//http://stackoverflow.com/questions/21008104/opencl-ambiguous-context-constructors
+	//m_context = cl::Context({m_device});
+	m_context = cl::Context(m_device);
+
 	m_queue = cl::CommandQueue(m_context, m_device);
 }
